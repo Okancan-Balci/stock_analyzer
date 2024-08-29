@@ -72,34 +72,7 @@ with st.sidebar:
 
 full_data = data.loc[(data.index >= str(data_date[0])) & (data.index <= str(data_date[1])), data_col]
 
-## FULL DATA MODEL
-arima = AutoARIMA(maxiter=100)
-arima.fit(full_data)
-fh = np.arange(1, 20)
-preds = arima.predict(fh)
-intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
-
-conf_50 = pd.concat([intervals['Close'][0.5].upper, intervals['Close'][0.5].lower[::-1]])
-conf_90 = pd.concat([intervals['Close'][0.9].upper, intervals['Close'][0.9].lower[::-1]])
-
-fig_all_data = go.Figure()
-fig_all_data.add_trace(go.Scatter(
-    x=full_data.index.to_timestamp(), y=full_data,
-    line_color="steelblue", mode="lines+markers", name="Observations"
-))
-fig_all_data.add_trace(go.Scatter(
-    x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
-    fill="toself", mode="lines+markers", name="90% Confidence"
-))
-fig_all_data.add_trace(go.Scatter(
-    x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
-    fill="toself", mode="lines+markers", name="50% Confidence"
-))
-fig_all_data.add_trace(go.Scatter(
-    x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions"
-))
-st.plotly_chart(fig_all_data)
-
+## TRAIN TEST
 train_data, test_data = temporal_train_test_split(full_data, test_size=input_test_size)
 
 arima = AutoARIMA(maxiter=100)
@@ -109,5 +82,57 @@ preds = arima.predict(fh)
 intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
 preds.index = test_data.index
 intervals.index = test_data.index
-figARIMATT, axARIMATT = plot_series(train_data, preds, test_data, pred_interval=intervals, labels=["train", "pred", "actual"])
-st.pyplot(figARIMATT)
+
+conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
+conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
+
+fig_traintest = go.Figure()
+fig_traintest.add_trace(go.Scatter(
+    x=train_data.index.to_timestamp(), y=train_data,
+    line_color="steelblue", mode="lines+markers", name="Training"
+))
+
+fig_traintest.add_trace(go.Scatter(
+    x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
+    fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}
+))
+fig_traintest.add_trace(go.Scatter(
+    x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
+    fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}
+))
+fig_traintest.add_trace(go.Scatter(
+    x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions"
+))
+fig_traintest.add_trace(go.Scatter(
+    x=test_data.index.to_timestamp(), y=test_data,
+    line_color="darkgreen", mode="lines+markers", name="Actual"
+))
+st.plotly_chart(fig_traintest)
+
+## FULL DATA MODEL
+arima = AutoARIMA(maxiter=100)
+arima.fit(full_data)
+fh = np.arange(1, 20)
+preds = arima.predict(fh)
+intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
+
+conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
+conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
+
+fig_all_data = go.Figure()
+fig_all_data.add_trace(go.Scatter(
+    x=full_data.index.to_timestamp(), y=full_data,
+    line_color="steelblue", mode="lines+markers", name="Observations"
+))
+fig_all_data.add_trace(go.Scatter(
+    x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
+    fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}
+))
+fig_all_data.add_trace(go.Scatter(
+    x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
+    fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}
+))
+fig_all_data.add_trace(go.Scatter(
+    x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions"
+))
+st.plotly_chart(fig_all_data)
