@@ -83,6 +83,28 @@ intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
 preds.index = test_data.index
 intervals.index = test_data.index
 
+last_observation = train_data.iloc[-1]
+last_predictions =  preds.iloc[-1]
+last_actual = test_data.iloc[-1]
+expected_return = (last_predictions - last_observation) / last_observation
+actual_return = (last_actual - last_observation) / last_observation
+money_at_hand = 100
+exp_money_return = (money_at_hand * expected_return)
+actual_money_return = (money_at_hand * actual_return)
+predicted_money = money_at_hand + exp_money_return
+realized_money = money_at_hand + actual_money_return
+
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Investment", value=money_at_hand)
+with col2:
+    st.metric("Predicted Money", value=np.round(predicted_money, 2), delta=f"{np.round(expected_return, 2) * 100}%")
+with col3:
+    st.metric("Actual Money", value=np.round(realized_money, 2), delta=f"{np.round(actual_return, 2) * 100}%")
+with col4:
+    st.metric("Prediction Discrepancy", value=np.round(realized_money - predicted_money, 2),
+            delta=f"{np.round((realized_money - predicted_money) / predicted_money, 2) * 100}%")
+
 conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
 conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
 
