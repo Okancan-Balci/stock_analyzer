@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -11,10 +12,13 @@ from sktime.split import temporal_train_test_split
 
 st.set_page_config(layout="wide")
 
-data = pd.read_csv("./garan_stock.csv", index_col="Date")
-
+with open("./toy_info.json", "r") as toy:
+    info_data = json.load(toy)
+data = pd.read_csv("./toy_data.csv", index_col="Date")
 data.index = pd.PeriodIndex(data.index, freq="D")
 data["YYYYMM"] =  pd.PeriodIndex(data.index, freq="M")
+
+st.title(f"{info_data["longName"]} | :gray[{info_data["city"]}, {info_data["country"]}]")
 
 tabMonthlyReturn, tabYearlyReturn = st.tabs(["Monthly Returns", "Yearly Returns"])
 with tabMonthlyReturn:
@@ -34,7 +38,10 @@ with tabMonthlyReturn:
     
     figMonthlyReturns = px.bar(data_frame=monthly_open_close,
                                x='YearMonth', y="Month_Return_Perc", color="Positive_Return",
-                               color_discrete_sequence=["green", "red"])
+                               color_discrete_sequence=["green", "red"], text_auto=True,
+                               labels={
+                                   "Month_Return_Perc" : "Monthly Return %",
+                                   "YearMonth" : ""})
     figMonthlyReturns.layout.update(showlegend=False)
     st.plotly_chart(figMonthlyReturns)
 
@@ -55,7 +62,11 @@ with tabYearlyReturn:
 
     figYearlyReturns = px.bar(data_frame=yearly_open_close,
                               x='Year', y="Year_Return_Perc", color="Positive_Return",
-                              color_discrete_sequence=["green", "red"])
+                              color_discrete_sequence=["green", "red"], text_auto=True,
+                              labels={
+                                  "Year_Return_Perc" : "Yearly Return %",
+                                  "Year" : ""
+                              })
     figYearlyReturns.layout.update(showlegend=False)
     st.plotly_chart(figYearlyReturns)
 
@@ -73,6 +84,7 @@ with st.sidebar:
 full_data = data.loc[(data.index >= str(data_date[0])) & (data.index <= str(data_date[1])), data_col]
 
 ## TRAIN TEST
+st.header("Hypotetical Investment with ARIMA")
 train_data, test_data = temporal_train_test_split(full_data, test_size=input_test_size)
 
 arima = AutoARIMA(maxiter=100)
@@ -108,53 +120,68 @@ with col4:
 conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
 conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
 
-fig_traintest = go.Figure()
-fig_traintest.add_trace(go.Scatter(
-    x=train_data.index.to_timestamp(), y=train_data,
-    line_color="steelblue", mode="lines+markers", name="Training"
-))
+tabTrainTest_Graph, tabTrainTest_ModelInfo = st.tabs(["Model Plot", "Model Information"])
 
-fig_traintest.add_trace(go.Scatter(
-    x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
-    fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}
-))
-fig_traintest.add_trace(go.Scatter(
-    x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
-    fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}
-))
-fig_traintest.add_trace(go.Scatter(
-    x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions"
-))
-fig_traintest.add_trace(go.Scatter(
-    x=test_data.index.to_timestamp(), y=test_data,
-    line_color="darkgreen", mode="lines+markers", name="Actual"
-))
-st.plotly_chart(fig_traintest)
-
+with tabTrainTest_Graph:
+    fig_traintest = go.Figure()
+    fig_traintest.add_trace(go.Scatter(
+        x=train_data.index.to_timestamp(), y=train_data,
+        line_color="steelblue", mode="lines+markers", name="Training", legendrank=1
+    ))
+    fig_traintest.add_trace(go.Scatter(
+        x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
+        fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}, legendrank=4
+    ))
+    fig_traintest.add_trace(go.Scatter(
+        x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
+        fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}, legendrank=3
+    ))
+    fig_traintest.add_trace(go.Scatter(
+        x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions", legendrank=2
+    ))
+    fig_traintest.add_trace(go.Scatter(
+        x=test_data.index.to_timestamp(), y=test_data,
+        line_color="darkgreen", mode="lines+markers", name="Actual", legendrank=5
+    ))
+    fig_traintest.layout.update(legend={
+        "orientation":'h',"x":0.25
+    })
+    st.plotly_chart(fig_traintest)
+with tabTrainTest_ModelInfo:
+    st.text(arima.summary().as_text())
 ## FULL DATA MODEL
-arima = AutoARIMA(maxiter=100)
-arima.fit(full_data)
-fh = np.arange(1, 20)
-preds = arima.predict(fh)
-intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
+st.header("Forecast")
+tabFullModel_Graph, tabFullModel_ModelInfo = st.tabs(["Model Plot", "Model Information"])
 
-conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
-conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
+with tabFullModel_Graph:
+    arima = AutoARIMA(maxiter=100)
+    arima.fit(full_data)
+    fh = np.arange(1, 20)
+    preds = arima.predict(fh)
+    intervals = arima.predict_interval(fh, coverage=[0.5, 0.9])
 
-fig_all_data = go.Figure()
-fig_all_data.add_trace(go.Scatter(
-    x=full_data.index.to_timestamp(), y=full_data,
-    line_color="steelblue", mode="lines+markers", name="Observations"
-))
-fig_all_data.add_trace(go.Scatter(
-    x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
-    fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}
-))
-fig_all_data.add_trace(go.Scatter(
-    x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
-    fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}
-))
-fig_all_data.add_trace(go.Scatter(
-    x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions"
-))
-st.plotly_chart(fig_all_data)
+    conf_50 = pd.concat([intervals[data_col][0.5].upper, intervals[data_col][0.5].lower[::-1]])
+    conf_90 = pd.concat([intervals[data_col][0.9].upper, intervals[data_col][0.9].lower[::-1]])
+
+    fig_all_data = go.Figure()
+    fig_all_data.add_trace(go.Scatter(
+        x=full_data.index.to_timestamp(), y=full_data,
+        line_color="steelblue", mode="lines+markers", name="Observations", legendrank=1
+    ))
+    fig_all_data.add_trace(go.Scatter(
+        x=conf_90.index.to_timestamp(), y=conf_90, line_color="yellow",
+        fill="toself", mode="lines+markers", name="90% Confidence", marker={"size":1}, line={"width":1}, legendrank=4
+    ))
+    fig_all_data.add_trace(go.Scatter(
+        x=conf_50.index.to_timestamp(), y=conf_50, line_color="lightgreen",
+        fill="toself", mode="lines+markers", name="50% Confidence", marker={"size":1}, line={"width":1}, legendrank=3
+    ))
+    fig_all_data.add_trace(go.Scatter(
+        x=preds.index.to_timestamp(), y=preds, line_color="orange", mode="lines+markers", name="Predictions", legendrank=2
+    ))
+    fig_all_data.layout.update(legend={
+        "orientation":'h', "x":0.25
+    })
+    st.plotly_chart(fig_all_data)
+with tabFullModel_ModelInfo:
+    st.text(arima.summary().as_text())
