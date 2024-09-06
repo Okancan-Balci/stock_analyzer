@@ -11,14 +11,13 @@ import yfinance as yf
 st.set_page_config(layout="wide")
 
 with st.sidebar:
-    ticker_name = st.text_input(label="Yahoo Finance Ticker", value="Example Data", max_chars=30)
+    ticker_name = st.text_input(label="Yahoo Finance Symbol", value="Example Data", max_chars=20)
 
 @st.cache_data
-def pull_data(ticker_name, period="1y"):
+def pull_data(ticker_name, period="2y"):
     ticker = yf.ticker.Ticker(ticker=ticker_name)
     data = ticker.history(period)
     info_data = ticker.get_info()
-
     return data, info_data
 
 
@@ -29,7 +28,11 @@ if ticker_name == "Example Data":
 else:
     data, info_data = pull_data(ticker_name=ticker_name)
     
-
+if "symbol" in info_data:
+    pass
+else:
+    st.write("The given symbol could not been found. Please check and try again.")
+    st.stop()
 
 data.index = pd.PeriodIndex(data.index, freq="D")
 data["YYYYMM"] =  pd.PeriodIndex(data.index, freq="M")
